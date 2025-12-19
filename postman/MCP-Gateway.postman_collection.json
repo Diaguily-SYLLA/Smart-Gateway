@@ -1,0 +1,574 @@
+{
+  "info": {
+    "_postman_id": "mcp-gateway-collection",
+    "name": "MCP Gateway - OAuth Demo",
+    "description": "Collection Postman pour tester l'architecture MCP Gateway avec OAuth Keycloak.\n\nArchitecture:\n- MCP Client (Postman) → API Gateway (Traefik) → MCP Servers\n- OAuth flows via Keycloak (Authorization Server)\n- mTLS entre Gateway et MCP Weather Server\n\nEndpoints:\n- /mcp/weather - Serveur météo\n- /mcp/calculator - Serveur calculatrice\n\nConfiguration OAuth:\n1. Aller dans l'onglet Authorization de la collection\n2. Cliquer sur 'Get New Access Token'\n3. Se connecter avec: testuser / testpassword123\n4. Utiliser le token pour les requêtes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "oauth2",
+    "oauth2": [
+      {
+        "key": "grant_type",
+        "value": "authorization_code",
+        "type": "string"
+      },
+      {
+        "key": "tokenName",
+        "value": "MCP Gateway Token",
+        "type": "string"
+      },
+      {
+        "key": "tokenType",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "accessToken",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "addTokenTo",
+        "value": "header",
+        "type": "string"
+      },
+      {
+        "key": "client_authentication",
+        "value": "header",
+        "type": "string"
+      },
+      {
+        "key": "challengeAlgorithm",
+        "value": "S256",
+        "type": "string"
+      },
+      {
+        "key": "useBrowser",
+        "value": true,
+        "type": "boolean"
+      },
+      {
+        "key": "authUrl",
+        "value": "http://localhost:8080/realms/mcp-gateway/protocol/openid-connect/auth",
+        "type": "string"
+      },
+      {
+        "key": "accessTokenUrl",
+        "value": "http://localhost:8080/realms/mcp-gateway/protocol/openid-connect/token",
+        "type": "string"
+      },
+      {
+        "key": "clientId",
+        "value": "mcp-client",
+        "type": "string"
+      },
+      {
+        "key": "clientSecret",
+        "value": "",
+        "type": "string"
+      },
+      {
+        "key": "scope",
+        "value": "openid profile email weather-scope",
+        "type": "string"
+      },
+      {
+        "key": "redirect_uri",
+        "value": "https://oauth.pstmn.io/v1/browser-callback",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "gateway_url",
+      "value": "https://localhost",
+      "type": "string"
+    },
+    {
+      "key": "keycloak_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "realm",
+      "value": "mcp-gateway",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 OAuth & Auth",
+      "description": "Endpoints pour l'authentification OAuth",
+      "item": [
+        {
+          "name": "Get OAuth Discovery",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{realm}}/.well-known/openid-configuration",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{realm}}", ".well-known", "openid-configuration"]
+            },
+            "description": "Récupère les métadonnées OAuth du serveur Keycloak"
+          }
+        },
+        {
+          "name": "Get JWKS (Public Keys)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/certs",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{realm}}", "protocol", "openid-connect", "certs"]
+            },
+            "description": "Récupère les clés publiques pour vérifier les tokens JWT"
+          }
+        },
+        {
+          "name": "Test Token (UserInfo)",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/userinfo",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{realm}}", "protocol", "openid-connect", "userinfo"]
+            },
+            "description": "Vérifie que le token est valide en récupérant les infos utilisateur"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🌤️ MCP Weather API",
+      "description": "Endpoints du serveur MCP Weather via la Gateway (/mcp/weather)",
+      "item": [
+        {
+          "name": "List Weather Tools",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/weather",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "weather"]
+            },
+            "description": "Liste tous les outils disponibles sur le serveur MCP Weather"
+          }
+        },
+        {
+          "name": "Get Weather Forecast - Paris",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_weather_forecast\",\n    \"arguments\": {\n      \"city\": \"Paris\",\n      \"country_code\": \"FR\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/weather",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "weather"]
+            },
+            "description": "Récupère la météo pour Paris via le serveur MCP (protégé par OAuth)"
+          }
+        },
+        {
+          "name": "Get Weather Forecast - Lyon",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_weather_forecast\",\n    \"arguments\": {\n      \"city\": \"Lyon\",\n      \"country_code\": \"FR\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/weather",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "weather"]
+            },
+            "description": "Récupère la météo pour Lyon"
+          }
+        },
+        {
+          "name": "Get Weather Alerts",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_weather_alerts\",\n    \"arguments\": {\n      \"region\": \"France\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/weather",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "weather"]
+            },
+            "description": "Récupère les alertes météo pour la France"
+          }
+        },
+        {
+          "name": "Get UV Index - Marseille",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_uv_index\",\n    \"arguments\": {\n      \"city\": \"Marseille\",\n      \"country_code\": \"FR\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/weather",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "weather"]
+            },
+            "description": "Récupère l'indice UV pour Marseille"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🧮 MCP Calculator API",
+      "description": "Endpoints du serveur MCP Calculator via la Gateway (/mcp/calculator)",
+      "item": [
+        {
+          "name": "List Calculator Tools",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Liste tous les outils disponibles sur le serveur MCP Calculator"
+          }
+        },
+        {
+          "name": "Add - 5 + 3",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"add\",\n    \"arguments\": {\n      \"a\": 5,\n      \"b\": 3\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Addition: 5 + 3 = 8"
+          }
+        },
+        {
+          "name": "Subtract - 10 - 4",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"subtract\",\n    \"arguments\": {\n      \"a\": 10,\n      \"b\": 4\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Soustraction: 10 - 4 = 6"
+          }
+        },
+        {
+          "name": "Multiply - 7 × 6",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"multiply\",\n    \"arguments\": {\n      \"a\": 7,\n      \"b\": 6\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Multiplication: 7 × 6 = 42"
+          }
+        },
+        {
+          "name": "Divide - 20 ÷ 4",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"divide\",\n    \"arguments\": {\n      \"a\": 20,\n      \"b\": 4\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Division: 20 ÷ 4 = 5"
+          }
+        },
+        {
+          "name": "Power - 2^10",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 6,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"power\",\n    \"arguments\": {\n      \"base\": 2,\n      \"exponent\": 10\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Puissance: 2^10 = 1024"
+          }
+        },
+        {
+          "name": "Square Root - √144",
+          "request": {
+            "auth": {
+              "type": "inherit"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 7,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"sqrt\",\n    \"arguments\": {\n      \"number\": 144\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Racine carrée: √144 = 12"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏥 Health & Status",
+      "description": "Endpoints de santé et statut",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/health",
+              "host": ["{{gateway_url}}"],
+              "path": ["health"]
+            },
+            "description": "Vérifie l'état de santé de la gateway (pas d'auth requise)"
+          }
+        },
+        {
+          "name": "Keycloak Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{keycloak_url}}/health/ready",
+              "host": ["{{keycloak_url}}"],
+              "path": ["health", "ready"]
+            },
+            "description": "Vérifie l'état de santé de Keycloak"
+          }
+        },
+        {
+          "name": "Traefik Dashboard API",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/api/overview",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8081",
+              "path": ["api", "overview"]
+            },
+            "description": "Accède à l'API du dashboard Traefik"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚫 Test Without Auth (401)",
+      "description": "Test des réponses 401 avec WWW-Authenticate header",
+      "item": [
+        {
+          "name": "Weather - Without Token (expect 401)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/weather",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "weather"]
+            },
+            "description": "Teste une requête sans token - doit retourner 401 avec WWW-Authenticate header"
+          }
+        },
+        {
+          "name": "Calculator - Without Token (expect 401)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/mcp/calculator",
+              "host": ["{{gateway_url}}"],
+              "path": ["mcp", "calculator"]
+            },
+            "description": "Teste une requête sans token - doit retourner 401 avec WWW-Authenticate header"
+          }
+        }
+      ]
+    }
+  ]
+}

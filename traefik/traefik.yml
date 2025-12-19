@@ -1,0 +1,45 @@
+# Traefik Static Configuration
+# API Gateway for MCP servers with OAuth token validation
+
+api:
+  dashboard: true
+  insecure: true  # For development only - disable in production
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  
+  websecure:
+    address: ":443"
+    http:
+      tls: {}
+
+  # Internal entrypoint for MCP servers (mTLS)
+  mcp-internal:
+    address: ":8443"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  filters:
+    statusCodes:
+      - "400-599"
+
+# Metrics (optional)
+metrics:
+  prometheus:
+    entryPoint: websecure

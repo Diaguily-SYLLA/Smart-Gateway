@@ -1,0 +1,176 @@
+# MCP Gateway - Docker Compose Configuration
+# Architecture: MCP Client (Postman) → API Gateway (Traefik) → MCP Server
+#              OAuth flows handled by Keycloak (Authorization Server)
+
+services:
+  # ============================================
+  # Keycloak - Authorization Server
+  # ============================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+      KC_HTTP_ENABLED: true
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_STRICT: false
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - mcp-network
+
+  # PostgreSQL for Keycloak
+  keycloak-db:
+    image: postgres:16-alpine
+    container_name: keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcp-network
+
+  # ============================================
+  # Auth Service - Token Verification
+  # ============================================
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: mcp-gateway
+      KEYCLOAK_CLIENT_ID: api-gateway
+      KEYCLOAK_CLIENT_SECRET: api-gateway-secret-change-me
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcp-network
+
+  # ============================================
+  # Traefik - API Gateway
+  # ============================================
+  traefik:
+    image: traefik:v3.2
+    container_name: traefik
+    command:
+      - "--configFile=/etc/traefik/traefik.yml"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"    # mTLS internal
+      - "8081:8080"    # Dashboard
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./certs:/certs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - auth-service
+      - mcp-weather
+    networks:
+      - mcp-network
+    labels:
+      - "traefik.enable=true"
+
+  # ============================================
+  # MCP Weather Server - Resource Server
+  # ============================================
+  mcp-weather:
+    build:
+      context: ./mcp-weather-server
+      dockerfile: Dockerfile
+    container_name: mcp-weather
+    environment:
+      PORT: 8000
+      MTLS_ENABLED: "true"
+      SSL_CERTFILE: /certs/mcp-weather.crt
+      SSL_KEYFILE: /certs/mcp-weather.key
+      SSL_CA_CERTS: /certs/ca.crt
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
+      # User info forwarded by gateway (for demo)
+      X_USER_SUB: ""
+      X_USER_EMAIL: ""
+      X_USER_ROLES: ""
+      X_USER_SCOPES: "weather:read weather:alerts"
+    volumes:
+      - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import ssl, socket; ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE; s = ctx.wrap_socket(socket.socket(), server_hostname='localhost'); s.connect(('localhost', 8000)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mcp-network
+
+  # ============================================
+  # MCP Calculator Server - Resource Server
+  # ============================================
+  mcp-calculator:
+    build:
+      context: ./mcp-calculator-server
+      dockerfile: Dockerfile
+    container_name: mcp-calculator
+    environment:
+      PORT: 8001
+      MTLS_ENABLED: "false"
+      # User info forwarded by gateway (for demo)
+      X_USER_SUB: ""
+      X_USER_EMAIL: ""
+      X_USER_ROLES: ""
+      X_USER_SCOPES: "calculator:read"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mcp-network
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  mcp-network:
+    driver: bridge
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  keycloak-db-data:

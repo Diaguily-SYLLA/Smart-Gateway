@@ -1,0 +1,165 @@
+# Traefik Dynamic Configuration - HTTP Routes and Middlewares
+
+http:
+  # Routers
+  routers:
+    # MCP Weather Gateway router
+    mcp-weather-gateway:
+      rule: "PathPrefix(`/mcp/weather`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - oauth-auth
+        - rate-limit
+        - security-headers
+        - strip-mcp-weather-prefix
+      service: mcp-weather-service
+      tls: {}
+
+    # MCP Calculator Gateway router
+    mcp-calculator-gateway:
+      rule: "PathPrefix(`/mcp/calculator`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - oauth-auth
+        - rate-limit
+        - security-headers
+        - strip-mcp-calculator-prefix
+      service: mcp-calculator-service
+      tls: {}
+
+    # Health check endpoint (no auth required)
+    health:
+      rule: "Path(`/health`)"
+      entryPoints:
+        - websecure
+      service: health-service
+      tls: {}
+
+    # OAuth discovery endpoint - returns WWW-Authenticate header
+    oauth-discovery:
+      rule: "Path(`/.well-known/oauth-authorization-server`)"
+      entryPoints:
+        - websecure
+      service: oauth-discovery-service
+      tls: {}
+
+  # Middlewares
+  middlewares:
+    # OAuth token validation via ForwardAuth to auth-service
+    oauth-auth:
+      forwardAuth:
+        address: "http://auth-service:3000/verify"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-User-Sub
+          - X-User-Email
+          - X-User-Roles
+          - X-User-Scopes
+        # Return WWW-Authenticate header on 401
+        authResponseHeadersRegex: "^(X-User-|WWW-Authenticate)"
+
+    # Strip /mcp/weather prefix before forwarding to backend
+    strip-mcp-weather-prefix:
+      stripPrefix:
+        prefixes:
+          - "/mcp/weather"
+
+    # Strip /mcp/calculator prefix before forwarding to backend
+    strip-mcp-calculator-prefix:
+      stripPrefix:
+        prefixes:
+          - "/mcp/calculator"
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1m
+
+    # Security headers
+    security-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        sslRedirect: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customResponseHeaders:
+          X-Gateway: "MCP-Gateway"
+          X-Powered-By: ""
+          Server: ""
+
+    # Strip /mcp prefix before forwarding to backend
+    strip-mcp-prefix:
+      stripPrefix:
+        prefixes:
+          - "/mcp"
+
+    # CORS for Postman
+    cors:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - OPTIONS
+          - POST
+        accessControlAllowHeaders:
+          - Authorization
+          - Content-Type
+        accessControlAllowOriginList:
+          - "https://oauth.pstmn.io"
+          - "http://localhost:*"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
+  # Services
+  services:
+    # MCP Weather Server (backend with mTLS)
+    mcp-weather-service:
+      loadBalancer:
+        servers:
+          - url: "https://mcp-weather:8000"
+        serversTransport: mcp-mtls-transport
+        healthCheck:
+          path: /health
+          interval: 30s
+          timeout: 5s
+          scheme: https
+
+    # Health check service
+    health-service:
+      loadBalancer:
+        servers:
+          - url: "https://mcp-weather:8000"
+        serversTransport: mcp-mtls-transport
+
+    # MCP Calculator Server (backend HTTP - no mTLS for simplicity)
+    mcp-calculator-service:
+      loadBalancer:
+        servers:
+          - url: "http://mcp-calculator:8001"
+        healthCheck:
+          path: /health
+          interval: 30s
+          timeout: 5s
+
+    # OAuth discovery mock service
+    oauth-discovery-service:
+      loadBalancer:
+        servers:
+          - url: "http://auth-service:3000"
+
+  # Server transports for mTLS
+  serversTransports:
+    mcp-mtls-transport:
+      serverName: "mcp-weather"
+      insecureSkipVerify: true
+      rootCAs:
+        - /certs/ca.crt
+      certificates:
+        - certFile: /certs/gateway.crt
+          keyFile: /certs/gateway.key

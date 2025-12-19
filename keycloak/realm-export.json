@@ -1,0 +1,189 @@
+{
+  "realm": "mcp-gateway",
+  "enabled": true,
+  "displayName": "MCP Gateway",
+  "displayNameHtml": "<strong>MCP Gateway</strong>",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "defaultSignatureAlgorithm": "RS256",
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
+  "clientSessionIdleTimeout": 0,
+  "clientSessionMaxLifespan": 0,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "roles": {
+    "realm": [
+      {
+        "name": "weather-user",
+        "description": "Can read weather data",
+        "composite": false
+      },
+      {
+        "name": "weather-admin",
+        "description": "Full access to weather services",
+        "composite": true,
+        "composites": {
+          "realm": ["weather-user"]
+        }
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mcp-client",
+      "name": "MCP Client (Postman)",
+      "description": "OAuth client for Postman MCP testing",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "mcp-client-secret-change-me",
+      "redirectUris": [
+        "https://oauth.pstmn.io/v1/browser-callback",
+        "https://oauth.pstmn.io/v1/callback",
+        "http://localhost:8080/callback"
+      ],
+      "webOrigins": [
+        "https://oauth.pstmn.io",
+        "http://localhost:8080"
+      ],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "post.logout.redirect.uris": "+"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "weather-scope"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "api-gateway",
+      "name": "API Gateway (Traefik)",
+      "description": "Service account for API Gateway token introspection",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "api-gateway-secret-change-me",
+      "redirectUris": [],
+      "webOrigins": [],
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {},
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [],
+      "optionalClientScopes": []
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "weather-scope",
+      "description": "Weather API access scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Access to weather data"
+      },
+      "protocolMappers": [
+        {
+          "name": "weather-read-scope",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "scope",
+            "claim.value": "weather:read weather:alerts",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "email": "testuser@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "testpassword123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["weather-user"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "User",
+      "email": "admin@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "adminpassword123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["weather-admin"]
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "mcp-client",
+      "roles": ["weather-user"]
+    }
+  ],
+  "clientScopeMappings": {
+    "account": [
+      {
+        "client": "mcp-client",
+        "roles": ["view-profile"]
+      }
+    ]
+  }
+}
